@@ -1,0 +1,217 @@
+import numpy as np
+import torch
+from torch import nn
+import torch.nn.functional as F
+device = 'cuda:0'
+##############################################
+#########          fusion3          ##########
+##############################################
+def create_coord_map(img_size, with_r=False):
+    H, W = img_size
+    grid_x, grid_y = np.meshgrid(np.arange(W), np.arange(H))
+    grid_x = torch.from_numpy(grid_x / (W - 1) * 2 - 1).float()
+    grid_y = torch.from_numpy(grid_y / (H - 1) * 2 - 1).float()
+    ret = torch.stack([grid_x, grid_y], dim=0).unsqueeze(0)
+    if with_r:
+        grid_r = torch.sqrt(torch.pow(grid_x, 2) + torch.pow(grid_y, 2)).view([1, 1, H, W])
+        ret = torch.cat([ret, grid_r], dim=1)
+    return ret
+
+class fusion3(nn.Module):
+    def __init__(self, num_cam, Rworld_shape, hidden_dim=128):
+        super(fusion3, self).__init__()
+        self.coord_map = create_coord_map(np.array(Rworld_shape))
+        self.world_feat = nn.Sequential(nn.Conv2d(898, hidden_dim, kernel_size=3, padding=1), nn.ReLU(),)
+        self.sampler = LocalSimGuidedSampler(in_channels=128, scale=2, style='lp', groups=4, use_direct_scale=True, kernel_size=3, norm=True)  # 特征重新采样
+        # 统一设备
+        self.coord_map.to(device)
+        self.world_feat.to(device)
+        self.sampler.to(device)
+
+    def forward(self, x, visualize=False):
+        # fusion3前向传播(x)
+        # mean_x {Tensor(1,128,120,360)} = 取平均
+        # B, N, C, H, W = 1, 7, 128, 120.360
+        # x {Tensor(1,896,120,360)} = 重塑形状
+        # x {Tensor(1,898,120,360)} = 连接坐标地图
+        # x {Tensor(1,128,120,360)} = 卷积
+        # x {Tensor(1,128,120,360)} = LocalSimGuidedSampler前向传播(lr_x=mean_x, feat2sample=x)
+        #                               lr_x {Tensor(1,128,120,360)} = 归一化
+        #                               lr_sim {Tensor(1,136,120,360)} = compute_similarity(input_tensor=lr_x)
+        #                                                                   B, C, H, W = 1, 128, 120, 360
+        #                                                                   unfold_tensor {Tensor(1,128x9=1152,120x360=43200)} = 展平
+        #                                                                   unfold_tensor {Tensor(1,128,9,120,360)} = 重塑形状
+        #                                                                   similarity {Tensor(1,9,120,360)} = 计算余弦相似度
+        #                                                                   similarity {Tensor(1,8,120,360)} = 去掉自己跟自己的余弦相似度
+        #                                                                   similarity {Tensor(1,8,120,360)} = 重塑形状
+        #                               offset {Tensor(1,8,120,360)} = get_offset_lp(lr_x=lr_sim)
+        #                                                                   init_pos {Tensor(1,8,1,1)} = 堆叠
+        #                                                                   offset {tensor(1,8,120,360)} = 卷积(lr_sim)
+        #                               result {Tensor(1,128,120,360)} = sample(x=feat2sample, offset=offset)
+        #                                                                   scale=2
+        #                                                                   B, _, H, W = 1, 8, 120, 360
+        #                                                                   offset {Tensor(1,2,4,120,360)} = 张量变换形状
+        #                                                                   coords_h {Tensor(120,)}         = [0.5  1.5 ………… 255.5]
+        #                                                                   coords_w {Tensor(360,)}         = [0.5  1.5 ………… 255.5]
+        #                                                                   coords {Tensor(1,2,1,120,360)}  =
+        #                                                                   normalizer {Tensor(1,2,1,1,1)}  = [[[[[120]]], [[[360]]]]]
+        #                                                                   coords {Tensor(1,2,4,120,360)}  = 2*{坐标(1,2,1,120,360)}+{偏移量(1,2,4,120,360)}/{归一化因子(1,2,1,1,1)}
+        #                                                                   coords{Tensor(4,120,360,2)}     = 返回在内存中连续存储的张量副本().重塑为一个一维张量(0,1)
+        #                                                                   result{Tensor(1,128,120,360)}   = 改变张量形状(B,-1,120,360)
+        mean_x = torch.mean(x, dim=1)
+        B, N, C, H, W = x.shape
+        x = x.view(B, N * C, H, W)
+        x = torch.cat([x, self.coord_map.repeat([B, 1, 1, 1]).to(x.device)], 1)
+        x = self.world_feat(x)
+        x = self.sampler(mean_x, x) # (mean_x用于产生offset  x用于被采样的)
+        return x
+
+##############################################
+#########       freqfusion模块       ##########
+##############################################
+
+
+
+
+
+
+
+##############################################
+#########  相似度模块（包含偏移和采样）   ##########
+##############################################
+try:
+    from mmcv.ops.carafe import normal_init, xavier_init, carafe
+except ImportError:
+    def xavier_init(module: nn.Module, gain: float = 1, bias: float = 0, distribution: str = 'normal') -> None:
+        if hasattr(module, 'weight') and module.weight is not None:
+            assert distribution in ['uniform', 'normal']
+            nn.init.xavier_uniform_(module.weight, gain=gain) if distribution == 'uniform' else nn.init.xavier_normal_(module.weight, gain=gain)
+        if hasattr(module, 'bias') and module.bias is not None:
+            nn.init.constant_(module.bias, bias)
+    def normal_init(module, mean=0, std=1, bias=0):
+        if hasattr(module, 'weight') and module.weight is not None:
+            nn.init.normal_(module.weight, mean, std)
+        if hasattr(module, 'bias') and module.bias is not None:
+            nn.init.constant_(module.bias, bias)
+    def constant_init(module, val, bias=0):
+        if hasattr(module, 'weight') and module.weight is not None:
+            nn.init.constant_(module.weight, val)
+        if hasattr(module, 'bias') and module.bias is not None:
+            nn.init.constant_(module.bias, bias)
+
+def compute_similarity(input_tensor, k=3, dilation=1, sim='cos'):
+    B, C, H, W = input_tensor.shape
+    unfold_tensor = F.unfold(input_tensor, k, padding=(k // 2) * dilation, dilation=dilation)  # 展平输入张量中每个点及其周围KxK范围内的点(B, CxKxK, HW)
+    unfold_tensor = unfold_tensor.reshape(B, C, k ** 2, H, W)
+    if sim == 'cos':    # 计算余弦相似度
+        similarity = F.cosine_similarity(unfold_tensor[:, :, k * k // 2:k * k // 2 + 1], unfold_tensor[:, :, :], dim=1)
+    elif sim == 'dot':  # 计算点积相似度
+        similarity = unfold_tensor[:, :, k * k // 2:k * k // 2 + 1] * unfold_tensor[:, :, :]
+        similarity = similarity.sum(dim=1)
+    else:
+        raise NotImplementedError
+    similarity = torch.cat((similarity[:, :k * k // 2], similarity[:, k * k // 2 + 1:]), dim=1) # 移除中心点的余弦相似度，得到[KxK-1]的结果
+    similarity = similarity.view(B, k * k - 1, H, W)        # 将结果重塑回[B, KxK-1, H, W]的形状
+    return similarity
+class LocalSimGuidedSampler(nn.Module):
+    def __init__(self,
+                 in_channels,
+                 scale              =2,
+                 style              ='lp',
+                 groups             =4,
+                 use_direct_scale   =True,
+                 kernel_size        =1,
+                 local_window       =3,
+                 sim_type           ='dot',
+                 norm               =True,
+                 direction_feat     ='sim_concat'):
+        super().__init__()
+        assert scale == 2 and style == 'lp' and (in_channels >= groups and in_channels % groups == 0)
+        self.scale          = scale
+        self.style          = style
+        self.groups         = groups
+        self.local_window   = local_window  # 原本为3 ， 替换为5 7 9
+        self.sim_type       = sim_type
+        self.direction_feat = direction_feat
+
+        if style == 'pl':
+            assert in_channels >= scale ** 2 and in_channels % scale ** 2 == 0
+            in_channels = in_channels // scale ** 2
+            out_channels = 2 * groups
+        else:
+            out_channels = 2 * groups
+        if self.direction_feat == 'sim':
+            self.offset = nn.Conv2d(local_window ** 2 - 1, out_channels, kernel_size=kernel_size, padding=kernel_size // 2)
+        elif self.direction_feat == 'sim_concat':
+            self.offset = nn.Conv2d(in_channels + local_window ** 2 - 1, out_channels, kernel_size=kernel_size, padding=kernel_size // 2)
+        else:
+            raise NotImplementedError
+        normal_init(self.offset, std=0.001)
+
+        self.norm_hr = nn.GroupNorm(in_channels // 8, in_channels) if norm else nn.Identity()
+        self.norm_lr = nn.GroupNorm(in_channels // 8, in_channels) if norm else nn.Identity()
+        self.register_buffer('init_pos', self._init_pos())
+
+    def _init_pos(self):
+        h = torch.arange((-self.scale + 1) / 2, (self.scale - 1) / 2 + 1) / self.scale
+        return torch.stack(torch.meshgrid([h, h])).transpose(1, 2).reshape(1, -1, 1, 1)
+
+    def sample(self, x, offset):
+        B, _, H, W = offset.shape
+        offset = offset.view(B, 2, -1, H, W)
+        coords_h = torch.arange(H) + 0.5
+        coords_w = torch.arange(W) + 0.5
+        coords = torch.stack(torch.meshgrid([coords_w, coords_h])).transpose(1, 2).unsqueeze(1).unsqueeze(0).type(x.dtype).to(x.device)
+        normalizer = torch.tensor([W, H], dtype=x.dtype, device=x.device).view(1, 2, 1, 1, 1)
+        coords = 2 * (coords + offset) / normalizer - 1
+        coords = coords.permute(0, 2, 3, 4, 1).contiguous().flatten(0, 1)
+        result = F.grid_sample(x.reshape(B * self.groups, -1, H, W), coords, mode='bilinear', align_corners=False, padding_mode="border").view(B, -1, H, W)
+        return result
+
+    def get_offset_lp(self, lr_x):
+        init_pos = self.init_pos
+        offset = self.offset(lr_x)
+        return offset + init_pos
+
+    def forward(self, lr_x, feat2sample):
+        if self.direction_feat == 'sim':
+            lr_x = self.norm_lr(lr_x)
+            lr_sim = compute_similarity(lr_x, self.local_window, dilation=1, sim='cos')
+        elif self.direction_feat == 'sim_concat':
+            lr_x = self.norm_lr(lr_x)
+            lr_sim = torch.cat([lr_x, compute_similarity(lr_x, self.local_window, dilation=1, sim='cos')], dim=1)
+        offset = self.get_offset_lp(lr_sim)
+        result = self.sample(feat2sample, offset)
+        return result
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+##############################################
+#########           main()          ##########
+##############################################
+if __name__ == '__main__':
+    # 测试fusion3
+    in_feat = torch.randn([1, 7, 128, 120, 360])
+    model = fusion3(7, [120, 360], 128)
+    print(model)
+    out_feat = model(in_feat)
+    print(out_feat.shape)
+
+    # 测试相似度模块
+    # lr_x = torch.randn([1, 128, 120, 360])
+    # feat2sample = torch.randn([1, 128, 120, 360])
+    # model = LocalSimGuidedSampler(in_channels=128, scale=2, style='lp', groups=4, use_direct_scale=True, kernel_size=3, norm=True)  # 特征重新采样
+    # print(model)
+    # result = model(lr_x, feat2sample)
+    # print(result.shape)
