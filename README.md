@@ -1,6 +1,8 @@
-<center>
-  # Multi-view pedestrian detection via residual mask fusion and cosine similarity-based passive sampler for video surveillance systems
-</center>
+<div align="center">
+  <h1 style="font-size: 2.5em; font-weight: bold; line-height: 1.3; margin: 20px 0;">
+    Multi-view Pedestrian Detection via Residual Mask Fusion and Cosine Similarity-based Passive Sampler for Video Surveillance Systems
+  </h1>
+</div>
 
 ## Project Overview
 
