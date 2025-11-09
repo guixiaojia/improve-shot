@@ -66,6 +66,8 @@ matplotlib: 3.5.2
 ## Train & Validation
 
 ```
-python main.py
+python main.py  # The hyperparameters inside main.py are default values, those can be adjusted in your Preference.
 ```
-The hyperparameters in the main.py are default values, it can be adjusted in your Preference.
+
+## Contact Us
+Email: guijiajia@stumail.ysu.edu.cn
