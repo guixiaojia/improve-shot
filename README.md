@@ -69,5 +69,5 @@ matplotlib: 3.5.2
 python main.py  # The hyperparameters inside main.py are default values, those can be adjusted in your Preference.
 ```
 
-## Contact Us
-Email: guijiajia@stumail.ysu.edu.cn
+## Contact Email
+guijiajia@stumail.ysu.edu.cn
