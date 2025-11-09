@@ -6,10 +6,12 @@
 
 ## 项目结构
 
+<pre>
 improve-shot/
 ├── LICENSE                   # MIT License
 ├── multiview_detector/
 │   ├── models/               # Network architectures
+│   │   ├── mvdetr.py         # Multi-view detection transformer model
 │   │   ├── conv_world_feat.py # Convolutional world feature fusion
 │   │   ├── trans_world_feat.py # Transformer-based world feature processing
 │   │   ├── fusion3.py        # Feature fusion modules
@@ -42,3 +44,4 @@ improve-shot/
 │   └── utils/                # Utility functions
 │       ├── image_utils.py    # Image processing helpers
 │       └── projection.py     # Camera projection utilities
+</pre>
