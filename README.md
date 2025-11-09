@@ -1,47 +1,57 @@
-# Multi-view Pedestrian Detection with Residual Mask Fusion and Cosine Similarity-based Passive Sampler
+# Multi-view pedestrian detection via residual mask fusion and cosine similarity-based passive sampler for video surveillance systems
 
-## 项目简介
+## Project Overview
 
-本项目提出了一种用于视频监控系统的多视角行人检测方法，通过残差掩码融合和基于余弦相似度的被动采样器来提高检测性能。
+This project proposes a multi-view pedestrian detection method for video surveillance systems, which improves detection performance through residual masking and a passive sampler based on cosine similarity.
 
-## 项目结构
+## Project Structure
 
 <pre>
 improve-shot/
-├── LICENSE                   # MIT License
 ├── multiview_detector/
-│   ├── models/               # Network architectures
-│   │   ├── mvdetr.py         # Multi-view detection transformer model
-│   │   ├── conv_world_feat.py # Convolutional world feature fusion
-│   │   ├── trans_world_feat.py # Transformer-based world feature processing
-│   │   ├── fusion3.py        # Feature fusion modules
-│   │   ├── boostershot.py    # Reference map generation
-│   │   ├── ops/              # Custom operations (CUDA extensions)
-│   │   │   ├── setup.py      # Compilation script for CUDA ops
-│   │   │   └── make.sh       # Build script for deformable convolutions
-│   │   └── attn_module.py    # Attention utilities
-│   │
-│   ├── datasets/             # Dataset handling
+│   ├── datasets/             
+│   │   ├── MultiviewX.py     # MultiviewX dataset parser
 │   │   ├── Wildtrack.py      # Wildtrack dataset parser
-│   │   └── MultiviewX.py     # MultiviewX dataset parser
+│   │   ├── __init__.py
+│   │   └── frameDataset.py   # Frame Processing
+│   │  
+│   ├── evaluation/ 
+│   │  
+│   ├── loss/ 
+│   │   ├── __init__.py
+│   │   ├── gaussian_mse.py   # Gaussian mean square error loss
+│   │   └── losses.py         # Focal loss
 │   │
-│   ├── evaluation/           # Evaluation tools
-│   │   ├── README.md         # Evaluation setup guide
-│   │   ├── gt-demo.txt       # Example ground truth data
-│   │   ├── pyeval/           # Python evaluation API (no MATLAB required)
-│   │   │   └── README.md     # Guide for Python evaluation
-│   │   └── motchallenge-devkit/ # MOTChallenge evaluation toolkit
-│   │       ├── README.md     # MOTChallenge devkit guide
-│   │       ├── res/          # Tracking results storage
-│   │       ├── utils/        # Evaluation utilities
-│   │       │   ├── convertTXTToStruct.m # Convert results to MATLAB struct
-│   │       │   └── external/ # External dependencies
-│   │       │       ├── PrintTable.m # MATLAB table formatting for reports
-│   │       │       ├── iniconfig/ # INI config parser (BSD licensed)
-│   │       │       └── dollar/ # Detector utilities (based on Integral Channel Features)
-│   │       └── seqmaps/      # Benchmark sequence lists
+│   ├── models/               
+│   │   ├── MultiViewDynamicMask.py # residual mask
+│   │   ├── fusion3.py              # cosine similarity-based passive sampler
+│   │   ├── resnet.py               # backbone
+│   │   ├── shot.py                 # baseline
+│   │   └── ops/
 │   │
-│   └── utils/                # Utility functions
-│       ├── image_utils.py    # Image processing helpers
-│       └── projection.py     # Camera projection utilities
+│   ├── utils/
+│   │
+│   └── trainer.py
+│
+├── LICENSE                   # MIT License
+├── README.md
+└── main.py
 </pre>
+
+## Environment Version
+
+RTX 4090
+ubuntu: 20.04
+PyTorch: 1.12.0
+Numpy: 1.21.2
+tqdm: 4.65.2
+kornia: 0.6.12
+opencv-python: 4.9.0.80
+matplotlib: 3.5.2
+
+## Dataset Download
+
+Wildtrack: https://www.epfl.ch/labs/cvlab/data/data-wildtrack/
+MultiviewX: https://onedrive.live.com/?id=DFB1B9D32643ECDC%2182813&resid=DFB1B9D32643ECDC%2182813&e=Hm9Xdg&migratedtospo=true&redeem=aHR0cHM6Ly8xZHJ2Lm1zL3UvcyFBdHpzUXliVHViSGZoWVo5R2hoYWhicDIwT1g5a0E%5FZT1IbTlYZGc&cid=dfb1b9d32643ecdc&v=validatepermission
+
+
