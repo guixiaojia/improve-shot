@@ -6,3 +6,39 @@
 
 ## 项目结构
 
+improve-shot/
+├── LICENSE                   # MIT License
+├── multiview_detector/
+│   ├── models/               # Network architectures
+│   │   ├── conv_world_feat.py # Convolutional world feature fusion
+│   │   ├── trans_world_feat.py # Transformer-based world feature processing
+│   │   ├── fusion3.py        # Feature fusion modules
+│   │   ├── boostershot.py    # Reference map generation
+│   │   ├── ops/              # Custom operations (CUDA extensions)
+│   │   │   ├── setup.py      # Compilation script for CUDA ops
+│   │   │   └── make.sh       # Build script for deformable convolutions
+│   │   └── attn_module.py    # Attention utilities
+│   │
+│   ├── datasets/             # Dataset handling
+│   │   ├── Wildtrack.py      # Wildtrack dataset parser
+│   │   └── MultiviewX.py     # MultiviewX dataset parser
+│   │
+│   ├── evaluation/           # Evaluation tools
+│   │   ├── README.md         # Evaluation setup guide
+│   │   ├── gt-demo.txt       # Example ground truth data
+│   │   ├── pyeval/           # Python evaluation API (no MATLAB required)
+│   │   │   └── README.md     # Guide for Python evaluation
+│   │   └── motchallenge-devkit/ # MOTChallenge evaluation toolkit
+│   │       ├── README.md     # MOTChallenge devkit guide
+│   │       ├── res/          # Tracking results storage
+│   │       ├── utils/        # Evaluation utilities
+│   │       │   ├── convertTXTToStruct.m # Convert results to MATLAB struct
+│   │       │   └── external/ # External dependencies
+│   │       │       ├── PrintTable.m # MATLAB table formatting for reports
+│   │       │       ├── iniconfig/ # INI config parser (BSD licensed)
+│   │       │       └── dollar/ # Detector utilities (based on Integral Channel Features)
+│   │       └── seqmaps/      # Benchmark sequence lists
+│   │
+│   └── utils/                # Utility functions
+│       ├── image_utils.py    # Image processing helpers
+│       └── projection.py     # Camera projection utilities
